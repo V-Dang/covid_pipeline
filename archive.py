@@ -49,3 +49,15 @@ def json_to_s3(filename: str, data: str, current_date: str) -> None:
             replace=True
             )    
         logging.info(f'Order data file has been saved to AWS bucket: {filename}')
+
+
+        # def fetch_covid_api(region: str, date: date) -> dict
+            # check status code
+            # check ..
+            # validate
+            # return data
+        # fetch_covid_api(date=d, region="Canada") 
+
+    # def is_good_covid_data() -> True / False
+        # if true: > 'covid/report_data'
+        # if false > 'errors/covid/report_data'

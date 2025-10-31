@@ -11,7 +11,7 @@ Schedule:
 - This DAG is set to run once a day.
 
 Architecture:
-API --> S3 --> Database (TBD)
+- API --> S3 --> Database (TBD)
 
 DAG:
 1. api_status
