@@ -1,6 +1,5 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from datetime import datetime, timedelta
 
@@ -8,7 +7,7 @@ from functions.covid_api import check_api_status, is_bucket_empty, full_load_ts,
 
 default_args = {
     'owner':'vividang',
-    'retries':1,
+    'retries':0,
     'retry_interval':timedelta(minutes=1)
 }
 

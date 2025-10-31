@@ -1,10 +1,7 @@
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-from datetime import datetime, timedelta
 import json
 import logging
 import requests
-# import pandas as pd
-from tempfile import NamedTemporaryFile
 import pendulum
 
 from secrets import s3_bucket_name
@@ -75,12 +72,6 @@ def incremental_load_ts(**kwargs):
     )
 
 def api_to_s3(**kwargs) -> None:
-
-    filename = kwargs['ti'].xcom_pull(
-        task_ids='create_filename',
-        key='filename'
-    )
-
     incremental_or_full = kwargs['ti'].xcom_pull(
         task_ids='full_or_incremental_load',
         key='is_bucket_empty'
@@ -91,16 +82,12 @@ def api_to_s3(**kwargs) -> None:
         task_ids=['full_load_ts', 'incremental_load_ts'],
         key='start_date'
     )[incremental_or_full]
-    
-
-
     end_date = pendulum.now().subtract(years=5)
-
-    print(f'start date: {start_date} end date:{end_date}')
 
     interval = pendulum.interval(start_date, end_date)
     dates_list = [d.format('YYYY-MM-DD') for d in (interval.range('days'))]
-    print(dates_list)
+
+    print(f'Fetching data between {start_date} and {end_date}')
 
     for d in dates_list:
         url = f"https://covid-api.com/api/reports?date={d}&region_name=Canada"
@@ -116,6 +103,6 @@ def api_to_s3(**kwargs) -> None:
                 replace=True
                 )    
             
-            logging.info(f'File ({len(data)} records) has been saved to AWS bucket: {filename}')
+            logging.info(f'File ({len(data)} records) has been saved to AWS bucket: covid/report_data_{d}.json')
         else:
             print(f'There are no instances of covid for date: {d}')
