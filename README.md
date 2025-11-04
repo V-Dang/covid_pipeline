@@ -41,12 +41,15 @@ Other Considerations:
     - Getting start_date by parsing latest filename in the S3 bucket
     - Getting start_date by getting the last successful execution ts (airflow macros)
 - Add different countries 
-    - Using airflow params
     - Each country should have a DAG
 - File format optimization
     - Converting JSON files to parquet for optimizing storage, read operations downstream
 - Use PySpark for data normalization, validation, and clean-up in curated (silver) layer
 - Use DBT to handle best practices for data transformations and business (gold) layer
+- Airflow params?
+
+- {...} -> {..., "_retrieved_at": "2025-02-01"}
+- {...} -> {"column": str(column)}
 
 Links and References:
 - API: https://covid-api.com/api/
@@ -54,3 +57,4 @@ Links and References:
     - Macros - https://airflow.apache.org/docs/apache-airflow/3.1.1/templates-ref.html
     - S3Hooks - https://airflow.apache.org/docs/apache-airflow/1.10.6/_api/airflow/hooks/S3_hook/index.html
     - Dynamic Task Mapping - https://airflow.apache.org/docs/apache-airflow/3.1.1/authoring-and-scheduling/dynamic-task-mapping.html
+    - Params - https://www.astronomer.io/docs/learn/airflow-params

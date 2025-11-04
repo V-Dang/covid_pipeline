@@ -1,9 +1,10 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.sdk import Param, get_current_context
 
 from datetime import datetime, timedelta
 
-from functions.covid_api import check_api_status, is_bucket_empty, get_full_load_ts, get_incremental_load_ts, api_to_s3, get_list_of_dates
+from src.covid_api import check_api_status, is_bucket_empty, get_full_load_ts, get_incremental_load_ts, api_to_s3, get_list_of_dates
 
 default_args = {
     'owner':'vividang',
@@ -15,7 +16,13 @@ with DAG(
     dag_id='covid_pipeline',
     default_args=default_args,
     start_date=datetime(2025, 10, 26, 0, 0),
-    schedule='0 0 * * *'
+    schedule='0 0 * * *',
+    params={
+    'Country': Param(
+        'Canada',
+        type='string',
+        enum=['Canada', 'US', 'China'])
+    }
 ):
     api_status = PythonOperator(
         task_id = 'api_status',
