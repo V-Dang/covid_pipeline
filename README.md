@@ -24,10 +24,12 @@ DAG:
     - Stores output (bool) as an XCOM
 3. (A) full_load_ts
     - Set the XCOM (start_date) as January 1, 2020
+    - If there is a param value for start_date, then use the param value instead
 3. (B) incremental_load_ts
     - Get the timestamp from the lastest modified file metadata
     - Set the XCOM (start_date) as the last_modified 
         - *** 5 years will be subtracted from this to simulate incremental loading
+    - If there is a param value for start_date, then use the param value instead
 5. write_to_bucket
     - This is the final task that writes json files from the API to the S3 bucket.
     - Gets the list of dates between the start date and end date. These dates must be pendulum.datetime type and formatted as YYYY-MM-DD 
@@ -35,6 +37,12 @@ DAG:
     - Loop through the list of dates to get from the API
         - If the returned JSON file contains data, then write the file to the S3 Bucket as covid/report_data_YYYY-MM-DD.json
         - Else (if the returned JSON output does not have any values), then print a statement that indicates no data found
+
+Params:
+- There are 3 different params.
+1. Country - Will be used to read the api and write to a subfolder in the bucket
+2. Start Date (Optional) - If this is not set upon triggering the dag, then the start_date used will be grabbed from downstream tasks
+3. End Date (Optional) - If this is not set upon triggering the dag, then the end_date used will be grabbed from downstream tasks
 
 Other Considerations:
 - Different methods to get start_date for incremental loading

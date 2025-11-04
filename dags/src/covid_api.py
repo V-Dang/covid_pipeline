@@ -159,7 +159,7 @@ def get_list_of_dates(**kwargs):
 
 def api_to_s3(**kwargs) -> None:
     """
-    Read APi and write to S3 bucket for each date.
+    Read API and write to S3 bucket for each date.
 
     Calls the function get_list_of_dates and loop through the dates list. Each loop writes a new json file to S3 bucket.
 
