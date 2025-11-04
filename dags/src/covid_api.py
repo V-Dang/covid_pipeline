@@ -29,10 +29,10 @@ def is_bucket_empty(**kwargs) -> str:
     If the bucket is empty, then push 0 to XCOM and return string "full_load_ts". 
     If there are files in the bucket, then push 1 to XCOM and return string "incremental_laod_ts".
     This will also be used as a decision branch operator to choose the type of load.
-
-    **kwargs: Airflow context dictionary containing:
-            - ti (TaskInstance): Used to push data to XCom.
-            - params['Country']: Country enum in Canada, USA, China
+    Args:
+        **kwargs: Airflow context dictionary containing:
+                - ti (TaskInstance): Used to push data to XCom.
+                - params['Country']: Country enum in Canada, USA, China
 
     Returns:
         string: 
@@ -63,15 +63,20 @@ def is_bucket_empty(**kwargs) -> str:
 
 def get_full_load_ts(**kwargs) -> None:
     """
-    Gets the timestamp for a full load (manually set to Jan 1 2020) for a full load. Start timestamp is pushed to XCOM.
-
-    **kwargs: Airflow context dictionary containing:
-            - ti (TaskInstance): Used to push data (start_date) to XCom.
+    Gets the timestamp for a full load using the specified param (start_date) or manually set to Jan 1 2020 for a full load. Start timestamp is pushed to XCOM.
+    
+    Args:
+        **kwargs: Airflow context dictionary containing:
+                - ti (TaskInstance): Used to push data (start_date) to XCom.
 
     Returns:
         None
     """
-    start_date = pendulum.datetime(2020, 1, 1)
+    if kwargs['params']['Start Date']:
+        start_date = pendulum.parse(kwargs['params']['Start Date'])
+    else:
+        start_date = pendulum.datetime(2020, 1, 1)
+
     kwargs['ti'].xcom_push(
         key='start_date',
         value=start_date
@@ -79,7 +84,7 @@ def get_full_load_ts(**kwargs) -> None:
 
 def get_incremental_load_ts(**kwargs) -> None:
     """
-    Gets the timestamp for an incremental load using the last modified metadata column in S3. Start timestamp is pushed to XCOM.
+    Gets the timestamp for an incremental load using the specified param (start_date) or the last modified metadata column in S3. Start timestamp is pushed to XCOM.
 
     **kwargs: Airflow context dictionary containing:
             - ti (TaskInstance): Used to push data (start_date) to XCom.
@@ -88,37 +93,39 @@ def get_incremental_load_ts(**kwargs) -> None:
     Returns:
         None
     """
-
-    country = kwargs['params']['Country']
-
-    s3_hook = S3Hook(aws_conn_id='aws_bucket')
-
-    # Get the list of files (keys) in s3
-    file_list = s3_hook.list_keys(
-        bucket_name=s3_bucket_name,
-        prefix=f'covid/{country}/'
-        )
-
-    file_dict = {}
-
-    # Get the last modified timestamp for each file/key
-    for filename in file_list:
-        last_modified_ts = s3_hook.get_key(
+    if kwargs['params']['Start Date']:
+        start_date = pendulum.parse(kwargs['params']['Start Date'])
+    else:
+        s3_hook = S3Hook(aws_conn_id='aws_bucket')
+        country = kwargs['params']['Country']
+        # Get the list of files (keys) in s3
+        file_list = s3_hook.list_keys(
             bucket_name=s3_bucket_name,
-            key=filename
-        ).last_modified
-        file_dict[filename] = last_modified_ts
+            prefix=f'covid/{country}/'
+            )
 
-    # Get latest modified date
-    file_dict = sorted(file_dict.items(), key=lambda x:x[1], reverse=True)
-    latest_modified_name = file_dict[0][0]
-    latest_modified_ts = (pendulum.instance(file_dict[0][1])).subtract(years=5)
+        file_dict = {}
 
-    logging.info(f'Last Modified: {latest_modified_ts} | File Name: {latest_modified_name}')
+        # Get the last modified timestamp for each file/key
+        for filename in file_list:
+            last_modified_ts = s3_hook.get_key(
+                bucket_name=s3_bucket_name,
+                key=filename
+            ).last_modified
+            file_dict[filename] = last_modified_ts
+
+        # Get latest modified date
+        file_dict = sorted(file_dict.items(), key=lambda x:x[1], reverse=True)
+        latest_modified_name = file_dict[0][0]
+        latest_modified_ts = (pendulum.instance(file_dict[0][1])).subtract(years=5)
+
+        start_date = last_modified_ts
+
+        logging.info(f'Last Modified: {latest_modified_ts} | File Name: {latest_modified_name}')
 
     kwargs['ti'].xcom_push(
         key='start_date',
-        value=latest_modified_ts
+        value=start_date
     )
 
 def get_list_of_dates(**kwargs):
@@ -133,9 +140,12 @@ def get_list_of_dates(**kwargs):
     """
 
     start_date = (kwargs['ti'].xcom_pull(task_ids="full_load_ts", key="start_date") or kwargs['ti'].xcom_pull(task_ids="incremental_load_ts", key="start_date"))
-
     start_date = pendulum.instance(start_date)
-    end_date = pendulum.now().subtract(years=5)
+
+    if kwargs['params']['End Date']:
+        end_date = pendulum.parse(kwargs['params']['End Date'])
+    else:
+        end_date = pendulum.now().subtract(years=5)
     
     if end_date.format('YYYY-MM-DD') == start_date.format('YYYY-MM-DD'):
         dates_list = [end_date.format('YYYY-MM-DD')]

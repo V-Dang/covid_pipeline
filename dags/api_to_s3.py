@@ -21,7 +21,19 @@ with DAG(
     'Country': Param(
         'Canada',
         type='string',
-        enum=['Canada', 'US', 'China'])
+        enum=['Canada', 'US', 'China']),
+        'Start Date': Param(
+            None,
+            type=['null', 'string'],
+            format='date-time',
+            description='Optional datetime parameter to specify date-specific data loads.'
+        ),
+        'End Date': Param(
+            None,
+            type=['null', 'string'],
+            format='date-time',
+            description='Optional datetime parameter to specify date-specific data loads.'
+        )
     }
 ):
     api_status = PythonOperator(
