@@ -59,6 +59,11 @@ Other Considerations:
 - {...} -> {..., "_retrieved_at": "2025-02-01"}
 - {...} -> {"column": str(column)}
 
+
+if full load, then load entire container into SQL table
+
+if incremental, then pick up where you left off
+
 Links and References:
 - API: https://covid-api.com/api/
 - Airflow: 
@@ -66,3 +71,8 @@ Links and References:
     - S3Hooks - https://airflow.apache.org/docs/apache-airflow/1.10.6/_api/airflow/hooks/S3_hook/index.html
     - Dynamic Task Mapping - https://airflow.apache.org/docs/apache-airflow/3.1.1/authoring-and-scheduling/dynamic-task-mapping.html
     - Params - https://www.astronomer.io/docs/learn/airflow-params
+    - Transfer S3 to Postgres 
+        - https://airflow.apache.org/docs/apache-airflow-providers-amazon/stable/_api/airflow/providers/amazon/aws/transfers/s3_to_sql/index.html#airflow.providers.amazon.aws.transfers.s3_to_sql.S3ToSqlOperator
+        - https://airflow.apache.org/docs/apache-airflow-providers-amazon/stable/transfer/s3_to_sql.html
+    - Insert into Postgres from S3
+        - https://airflow.apache.org/docs/apache-airflow-providers-postgres/stable/_api/airflow/providers/postgres/hooks/postgres/index.html#airflow.providers.postgres.hooks.postgres.PostgresHook.insert_rows

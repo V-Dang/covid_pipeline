@@ -1,10 +1,12 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.providers.amazon.aws.transfers.s3_to_sql import S3ToSqlOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.sdk import Param, get_current_context
 
 from datetime import datetime, timedelta
 
-from src.covid_api import check_api_status, is_bucket_empty, get_full_load_ts, get_incremental_load_ts, api_to_s3, get_list_of_dates
+from archive.covid_api import check_api_status, is_bucket_empty, get_full_load_ts, get_incremental_load_ts, api_to_s3, get_list_of_dates, full_load_into_postgres_table
 
 default_args = {
     'owner':'vividang',
@@ -60,4 +62,41 @@ with DAG(
         trigger_rule='none_failed_min_one_success'
         # provide_context=True
     )
-    api_status >> full_or_incremental_load >> [full_load_ts, incremental_load_ts] >> write_to_bucket
+    # get_latest_postgres_row = SQLExecuteQueryOperator(
+    #     task_id = 'get_latest_postgres_row',
+    #     conn_id='postgres_db',
+    #     sql="""
+    #     SELECT MAX(date) FROM covid_test
+    #     """
+    # )
+    # insert_into_postgres_table = PythonOperator(
+    #     task_id = 'insert_into_postgres_table',
+    #     python_callable=
+    # )
+    create_postgres_table = SQLExecuteQueryOperator(
+        task_id='create_postgres_table',
+        conn_id='postgres_db',
+        sql="""
+            CREATE TABLE IF NOT EXISTS covid_test (
+                date DATE,
+                confirmed INT,
+                deaths INT,
+                recovered INT,
+                confirmed_diff INT,
+                deaths_diff INT,
+                recovered_diff INT,
+                last_update TIMESTAMP,
+                active INT, 
+                active_diff INT, 
+                fatality_rate INT, 
+                region VARCHAR(255)
+            )
+        """    
+    )
+    full_load_into_postgres_table = PythonOperator(
+        task_id='full_load_into_postgres_table',
+        python_callable=full_load_into_postgres_table
+    )
+    api_status >> full_or_incremental_load >> [full_load_ts, incremental_load_ts] 
+    full_load_ts >> write_to_bucket >> full_load_into_postgres_table
+    # incremental_load_ts >> get_latest_postgres_row >> write_to_bucket >> insert_into_postgres_table
