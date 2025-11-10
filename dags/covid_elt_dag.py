@@ -73,17 +73,6 @@ with DAG(
         trigger_rule='none_failed_min_one_success'
         # provide_context=True
     )
-    # get_latest_postgres_row = SQLExecuteQueryOperator(
-    #     task_id = 'get_latest_postgres_row',
-    #     conn_id='postgres_db',
-    #     sql="""
-    #     SELECT MAX(date) FROM covid_test
-    #     """
-    # )
-    # insert_into_postgres_table = PythonOperator(
-    #     task_id = 'insert_into_postgres_table',
-    #     python_callable=
-    # )
     create_postgres_table = SQLExecuteQueryOperator(
         task_id='create_postgres_table',
         conn_id=postgres_conn_id,
@@ -108,7 +97,12 @@ with DAG(
         task_id='full_load_into_postgres_table',
         python_callable=covid_load.full_load_into_postgres_table
     )
+    incremental_load_into_postgres_table = PythonOperator(
+        task_id='incremental_load_into_postgres_table',
+        python_callable=covid_load.incremental_load_into_postgres_table
+    )
+
     api_status >> full_or_incremental_load >> [full_load_ts, incremental_load_ts] 
     full_load_ts >> write_to_bucket >> full_load_into_postgres_table
-    incremental_load_ts >> write_to_bucket 
+    incremental_load_ts >> write_to_bucket >> incremental_load_into_postgres_table
     # >> insert_into_postgres_table
