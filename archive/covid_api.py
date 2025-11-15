@@ -243,7 +243,7 @@ def full_load_into_postgres_table(**kwargs):
             insert_files.append(row_values)
 
     postgres_hook.insert_rows(
-        table='covid_test',
+        table='covid_raw',
         rows=insert_files,
         target_fields=["date","confirmed","deaths","recovered","confirmed_diff","deaths_diff","recovered_diff","last_update","active","active_diff","fatality_rate","region"],
         commit_every=1000,

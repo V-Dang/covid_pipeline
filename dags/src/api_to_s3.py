@@ -1,8 +1,12 @@
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+
 import json
+from typing import List
+
 import logging
 import requests
 import pendulum
+
 
 from src.s3 import s3
 
@@ -10,7 +14,7 @@ class api_to_s3(s3):
     def __init__(self, bucket_name, aws_conn_id):
         super().__init__(bucket_name=bucket_name, aws_conn_id=aws_conn_id)
 
-    def check_api_status(self, **context) -> int:
+    def check_api_status(self, country: str) -> int:
         """
         Check the status of the api and return the status code.
         
@@ -21,12 +25,11 @@ class api_to_s3(s3):
         Returns:
             int: The status code of the api (ex. 200, 404, etc.)
         """
-        country = context['params']['Country']
         url = f"https://covid-api.com/api/reports?region_name={country}"
         response = requests.get(url)
         return response.status_code
 
-    def get_list_of_dates(self, **kwargs) -> list:
+    def get_list_of_dates(self, start_date, manual_end_date=None):
         """
         Gets the list of dates from start date (pulled from XCOM) to end date (current date).
 
@@ -37,14 +40,10 @@ class api_to_s3(s3):
             list[str]: List of dates in format YYYY-MM-DD
         """
 
-        start_date_xcom = (kwargs['ti'].xcom_pull(task_ids="full_load_ts", key="start_date") or kwargs['ti'].xcom_pull(task_ids="incremental_load_ts", key="start_date"))
-        start_date = pendulum.instance(start_date_xcom)
+        start_date = pendulum.parse(start_date)
 
-        print('xcom:', start_date_xcom)
-        print('sd:', start_date)
-
-        if kwargs['params']['End Date']:
-            end_date = pendulum.parse(kwargs['params']['End Date'])
+        if manual_end_date != 'None':
+            end_date = pendulum.parse(manual_end_date)
         else:
             end_date = pendulum.now().subtract(years=5)
         
@@ -58,7 +57,7 @@ class api_to_s3(s3):
         logging.info(dates_list)
         return dates_list
     
-    def write_to_s3(self, **kwargs) -> None:
+    def write_to_s3(self, country, start_date, manual_end_date=None) -> None:
         """
         Read API and write to S3 bucket for each date.
 
@@ -72,13 +71,9 @@ class api_to_s3(s3):
             None
         """
         logging.info('Getting dates list.......')
-
-        dates = self.get_list_of_dates(**kwargs)
+        dates = self.get_list_of_dates(start_date, manual_end_date)
 
         logging.info('Loading data......')
-
-        country = kwargs['params']['Country']
-
         for d in dates:
             url = f"https://covid-api.com/api/reports?date={d}&region_name={country}"
             response = requests.get(url)

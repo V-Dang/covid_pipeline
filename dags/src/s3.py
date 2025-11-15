@@ -10,8 +10,8 @@ class s3():
         self.bucket_name = bucket_name
         self.aws_conn_id = aws_conn_id
     
-    def get_s3_filenames(self, **kwargs):
-        country = kwargs['params']['Country']
+    def get_s3_filenames(self, country):
+        # country = kwargs['params']['Country']
 
         s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
 
@@ -21,7 +21,7 @@ class s3():
             )
         return file_list
 
-    def is_bucket_empty(self, **kwargs) -> str:
+    def is_bucket_empty(self, country) -> str:
         """
         Checks if there are files in the S3 bucket. 
         
@@ -36,25 +36,16 @@ class s3():
         Returns:
             string: 
         """
-
-        file_list = self.get_s3_filenames(**kwargs)
+        file_list = self.get_s3_filenames(country)
 
         if not file_list:
             logging.info('Starting full load...')
-            kwargs['ti'].xcom_push(
-                key='is_bucket_empty',
-                value=0
-            )
             return 'full_load_ts'
         else:
             logging.info('Starting incremental load...')
-            kwargs['ti'].xcom_push(
-            key='is_bucket_empty',
-            value=1
-            )
             return 'incremental_load_ts'
 
-    def get_full_load_ts(**kwargs) -> None:
+    def get_full_load_ts(manual_start_date=None) -> str:
         """
         Gets the timestamp for a full load using the specified param (start_date) or manually set to Jan 1 2020 for a full load. Start timestamp is pushed to XCOM.
         
@@ -65,17 +56,14 @@ class s3():
         Returns:
             None
         """
-        if kwargs['params']['Start Date']:
-            start_date = pendulum.parse(**kwargs['params']['Start Date'])
+        if manual_start_date:
+            start_date = pendulum.parse(manual_start_date)
         else:
             start_date = pendulum.datetime(2020, 1, 1)
 
-        kwargs['ti'].xcom_push(
-            key='start_date',
-            value=start_date
-        )
+        return start_date
 
-    def get_incremental_load_ts(self, **kwargs) -> None:
+    def get_incremental_load_ts(self, country, manual_start_date=None) -> str:
         """
         Gets the timestamp for an incremental load using the specified param (start_date) or the last modified metadata column in S3. Start timestamp is pushed to XCOM.
 
@@ -86,13 +74,13 @@ class s3():
         Returns:
             None
         """
-        if kwargs['params']['Start Date']:
-            start_date = pendulum.parse(**kwargs['params']['Start Date'])
+        if manual_start_date != 'None':
+            start_date = pendulum.parse(manual_start_date)
         else:
             s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
             
             # Get the list of files (keys) in s3
-            file_list = self.get_s3_filenames(**kwargs)
+            file_list = self.get_s3_filenames(country)
 
             file_dict = {}
 
@@ -114,7 +102,4 @@ class s3():
         logging.info(f'Last Modified: {latest_modified_ts} | File Name: {latest_modified_name}')
         logging.info(f'Start Date: {start_date}')
 
-        kwargs['ti'].xcom_push(
-            key='start_date',
-            value=start_date
-        )
+        return start_date

@@ -66,7 +66,7 @@ with DAG(
     #     task_id = 'get_latest_postgres_row',
     #     conn_id='postgres_db',
     #     sql="""
-    #     SELECT MAX(date) FROM covid_test
+    #     SELECT MAX(date) FROM covid_raw
     #     """
     # )
     # insert_into_postgres_table = PythonOperator(
@@ -77,7 +77,7 @@ with DAG(
         task_id='create_postgres_table',
         conn_id='postgres_db',
         sql="""
-            CREATE TABLE IF NOT EXISTS covid_test (
+            CREATE TABLE IF NOT EXISTS covid_raw (
                 date DATE,
                 confirmed INT,
                 deaths INT,
