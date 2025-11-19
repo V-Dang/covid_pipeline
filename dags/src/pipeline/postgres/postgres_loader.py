@@ -3,16 +3,16 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 import json
 import pendulum
 
-from src.s3 import s3
+from dags.src.S3Client.s3_client import S3Client
 
-class s3_to_postgres(s3):
-    def __init__(self, bucket_name, aws_conn_id, postgres_conn_id):
-        super().__init__(bucket_name=bucket_name, aws_conn_id=aws_conn_id)
+class PostgresClient():
+    def __init__(self, postgres_conn_id, table_name):
         self.postgres_conn_id = postgres_conn_id
+        self.table_name = table_name
 
     def latest_postgres_row_date(self):
         postgres_hook = PostgresHook(postgres_conn_id='postgres_db')
-        latest_date_query = f'SELECT MAX(date) FROM covid_raw;'
+        latest_date_query = f'SELECT MAX(date) FROM {self.table_name};'
 
         max_date = (postgres_hook.get_first(latest_date_query)[0]).strftime("%Y-%m-%d")
 

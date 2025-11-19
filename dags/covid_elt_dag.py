@@ -5,8 +5,8 @@ from airflow.sdk import Param, get_current_context
 
 from datetime import datetime, timedelta
 
-from src.api_to_s3 import api_to_s3
-from src.s3_to_postgres import s3_to_postgres
+from dags.src.S3Client.s3_loader import api_to_s3
+from dags.src.postgres.postgres_loader import s3_to_postgres
 from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 
 covid_extract = api_to_s3(
