@@ -13,9 +13,9 @@ def get_list_of_dates(start_date, manual_end_date=None):
     Returns:
         list[str]: List of dates in format YYYY-MM-DD
     """
-    if type(start_date) == str:                         # works for version 1 (start_date is a string)
+    if isinstance(start_date, str):                         # works for version 1 (start_date is a string)
         start_date = pendulum.parse(start_date)
-    elif type(start_date) == datetime:                  # works for version 2 (start_date is a datetime datetime)
+    elif isinstance(start_date, datetime):                  # works for version 2 (start_date is a datetime datetime)
         start_date = pendulum.instance(start_date)
 
     if manual_end_date not in ['None', None]:
