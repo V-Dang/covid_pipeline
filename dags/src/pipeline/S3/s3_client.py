@@ -3,25 +3,23 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 import logging
 import pendulum
 
-class s3():
-    def __init__(self, bucket_name, aws_conn_id, **kwargs):
-        super().__init__(**kwargs)
-        # self.url = url
+class S3Client():
+    def __init__(self, bucket_name, aws_conn_id, prefix):
         self.bucket_name = bucket_name
         self.aws_conn_id = aws_conn_id
+        self.s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
+        self.prefix = prefix
     
-    def get_s3_filenames(self, country):
+    def get_s3_filenames(self):
         # country = kwargs['params']['Country']
 
-        s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
-
-        file_list = s3_hook.list_keys(
+        file_list = self.s3_hook.list_keys(
             bucket_name=self.bucket_name,
-            prefix=f'covid/{country}'
+            prefix=self.prefix
             )
         return file_list
 
-    def is_bucket_empty(self, country) -> str:
+    def is_bucket_empty(self) -> str:
         """
         Checks if there are files in the S3 bucket. 
         
@@ -36,14 +34,16 @@ class s3():
         Returns:
             string: 
         """
-        file_list = self.get_s3_filenames(country)
+        file_list = self.get_s3_filenames()
 
         if not file_list:
             logging.info('Starting full load...')
             return 'full_load_ts'
+            # return True
         else:
             logging.info('Starting incremental load...')
             return 'incremental_load_ts'
+            # return False
 
     def get_full_load_ts(manual_start_date=None) -> str:
         """
@@ -56,14 +56,14 @@ class s3():
         Returns:
             None
         """
-        if manual_start_date:
+        if manual_start_date not in ['None', None]:
             start_date = pendulum.parse(manual_start_date)
         else:
             start_date = pendulum.datetime(2020, 1, 1)
 
         return start_date
 
-    def get_incremental_load_ts(self, country, manual_start_date=None) -> str:
+    def get_incremental_load_ts(self, region_name, manual_start_date=None) -> str:
         """
         Gets the timestamp for an incremental load using the specified param (start_date) or the last modified metadata column in S3. Start timestamp is pushed to XCOM.
 
@@ -74,19 +74,17 @@ class s3():
         Returns:
             None
         """
-        if manual_start_date != 'None':
+        if manual_start_date not in ['None', None]:
             start_date = pendulum.parse(manual_start_date)
         else:
-            s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
-            
             # Get the list of files (keys) in s3
-            file_list = self.get_s3_filenames(country)
+            file_list = self.get_s3_filenames()
 
             file_dict = {}
 
             # Get the last modified timestamp for each file/key
             for filename in file_list:
-                last_modified_ts = s3_hook.get_key(
+                last_modified_ts = self.s3_hook.get_key(
                     bucket_name=self.bucket_name,
                     key=filename
                 ).last_modified
