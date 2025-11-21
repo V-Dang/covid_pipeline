@@ -1,20 +1,24 @@
 import logging
 import pendulum
+from datetime import datetime
 
-def get_list_of_dates(self, start_date, manual_end_date=None):
+def get_list_of_dates(start_date, manual_end_date=None):
     """
-    Gets the list of dates from start date (pulled from XCOM) to end date (current date).
+    Gets the list of dates from start date (depending on manual input, full/incremental load ts) to end date (current date).
 
     Args:
-        **kwargs: XCOM start date for full or incremental load
+        start_date (str): Start date in format YYYY-MM-DD
+        manual_end_date (str, optional): End date in format YYYY-MM-DD. Defaults to None.
 
     Returns:
         list[str]: List of dates in format YYYY-MM-DD
     """
+    if type(start_date) == str:                         # works for version 1 (start_date is a string)
+        start_date = pendulum.parse(start_date)
+    elif type(start_date) == datetime:                  # works for version 2 (start_date is a datetime datetime)
+        start_date = pendulum.instance(start_date)
 
-    start_date = pendulum.parse(start_date)
-
-    if manual_end_date != 'None':
+    if manual_end_date not in ['None', None]:
         end_date = pendulum.parse(manual_end_date)
     else:
         end_date = pendulum.now().subtract(years=5)

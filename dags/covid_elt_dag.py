@@ -5,18 +5,32 @@ from airflow.sdk import Param, get_current_context
 
 from datetime import datetime, timedelta
 
-from dags.src.S3Client.s3_loader import api_to_s3
-from dags.src.postgres.postgres_loader import s3_to_postgres
+from src.pipeline.api.api_extractor import ApiExtractor
+from src.pipeline.S3.s3_loader import S3Loader
+from src.pipeline.postgres.postgres_loader import PostgresLoader
+from src.pipeline.pipeline_config import PipelineConfig
+from src.models.schemas import CovidDataSchema
 from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 
-covid_extract = api_to_s3(
-    bucket_name=s3_bucket_name, 
-    aws_conn_id=aws_conn_id
-)
-covid_load = s3_to_postgres(
-    bucket_name=s3_bucket_name, 
-    aws_conn_id=aws_conn_id,
-    postgres_conn_id=postgres_conn_id
+# Define pipeline config obj here
+covid_pipeline = PipelineConfig(
+    ApiExtractor=ApiExtractor(
+        url='https://covid-api.com/api/reports',
+        ),
+    S3Loader=S3Loader(
+        bucket_name=s3_bucket_name,
+        aws_conn_id=aws_conn_id,
+        prefix='covid/Canada'
+        ),
+    PostgresLoader=PostgresLoader(
+        bucket_name=s3_bucket_name,
+        aws_conn_id=aws_conn_id,
+        prefix='covid/Canada',
+
+        postgres_conn_id=postgres_conn_id,
+        table_name='covid_raw',
+        schema=CovidDataSchema
+    )
 )
 
 default_args = {
@@ -51,38 +65,38 @@ with DAG(
 ):
     api_status = PythonOperator(
         task_id = 'api_status',
-        python_callable=covid_extract.check_api_status,
+        python_callable=covid_pipeline.ApiExtractor.check_api_status,
         op_kwargs={
-            'country': '{{ params.Country }}'
+            'region_name': '{{ params.Country }}'
         }
     )
     full_or_incremental_load = BranchPythonOperator(
         task_id = 'full_or_incremental_load',
-        python_callable=covid_extract.is_bucket_empty,
+        python_callable=covid_pipeline.S3Loader.is_bucket_empty,
         op_kwargs={
-            'country': '{{ params.Country }}'
+            'region_name': '{{ params.Country }}'
         }
     )
     full_load_ts = PythonOperator(
         task_id = 'full_load_ts',
-        python_callable=covid_extract.get_full_load_ts,
+        python_callable=covid_pipeline.S3Loader.get_full_load_ts,
         op_kwargs={
             'manual_start_date': '{{ params.start_date }}'
         }
     )
     incremental_load_ts = PythonOperator(
         task_id = 'incremental_load_ts',
-        python_callable=covid_extract.get_incremental_load_ts,
+        python_callable=covid_pipeline.S3Loader.get_incremental_load_ts,
         op_kwargs={
             'manual_start_date': '{{ params.start_date }}',
-            'country': '{{ params.Country }}'
+            'region_name': '{{ params.Country }}'
         }
     )
     write_to_bucket = PythonOperator(
         task_id = 'write_to_bucket',
-        python_callable=covid_extract.write_to_s3,
+        python_callable=covid_pipeline.S3Loader.write_to_s3,
         op_kwargs={
-            'country': '{{ params.Country }}',
+            'region_name': '{{ params.Country }}',
             'start_date': '{{ ti.xcom_pull(task_ids="full_load_ts", key="return_value") if ti.xcom_pull(task_ids="full_or_incremental_load") == "full_load_ts" else ti.xcom_pull(task_ids="incremental_load_ts", key="return_value") }}',
             'manual_end_date': '{{ params.end_date }}'
         },
@@ -114,18 +128,18 @@ with DAG(
     )
     full_load_into_postgres_table = PythonOperator(
         task_id='full_load_into_postgres_table',
-        python_callable=covid_load.full_load_into_postgres_table,
+        python_callable=covid_pipeline.PostgresLoader.full_load_into_postgres_table,
         trigger_rule='none_skipped',
         # provide_context=True
     )
     incremental_load_into_postgres_table = PythonOperator(
         task_id='incremental_load_into_postgres_table',
-        python_callable=covid_load.incremental_load_into_postgres_table,
+        python_callable=covid_pipeline.PostgresLoader.incremental_load_into_postgres_table,
         op_kwargs={
-            'country':'{{ params.Country }}',
-            'execution_ts': '{{ ts}}'
+            'region_name':'{{ params.Country }}',
+            'execution_ts': '{{ ts }}'
         },
-        trigger_rule='none_skipped',
+        trigger_rule='none_failed',
         # provide_context=True
     )
 

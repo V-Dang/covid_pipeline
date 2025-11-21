@@ -39,9 +39,11 @@ class S3Client():
         if not file_list:
             logging.info('Starting full load...')
             return 'full_load_ts'
+            # return True
         else:
             logging.info('Starting incremental load...')
             return 'incremental_load_ts'
+            # return False
 
     def get_full_load_ts(manual_start_date=None) -> str:
         """
@@ -54,14 +56,14 @@ class S3Client():
         Returns:
             None
         """
-        if manual_start_date:
+        if manual_start_date not in ['None', None]:
             start_date = pendulum.parse(manual_start_date)
         else:
             start_date = pendulum.datetime(2020, 1, 1)
 
         return start_date
 
-    def get_incremental_load_ts(self, country, manual_start_date=None) -> str:
+    def get_incremental_load_ts(self, region_name, manual_start_date=None) -> str:
         """
         Gets the timestamp for an incremental load using the specified param (start_date) or the last modified metadata column in S3. Start timestamp is pushed to XCOM.
 
@@ -72,11 +74,11 @@ class S3Client():
         Returns:
             None
         """
-        if manual_start_date != 'None':
+        if manual_start_date not in ['None', None]:
             start_date = pendulum.parse(manual_start_date)
         else:
             # Get the list of files (keys) in s3
-            file_list = self.get_s3_filenames(country)
+            file_list = self.get_s3_filenames()
 
             file_dict = {}
 

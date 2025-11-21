@@ -2,13 +2,16 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 import json
 import pendulum
+from pydantic import BaseModel
+from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
+from src.pipeline.S3.s3_loader import S3Client
 
-from dags.src.S3Client.s3_client import S3Client
-
-class PostgresClient():
-    def __init__(self, postgres_conn_id, table_name):
+class PostgresLoader(S3Client):
+    def __init__(self, bucket_name: str, aws_conn_id: str, prefix: str, postgres_conn_id:str, table_name:str, schema:BaseModel):
+        S3Client.__init__(self, bucket_name, aws_conn_id, prefix)
         self.postgres_conn_id = postgres_conn_id
         self.table_name = table_name
+        self.schema = schema
 
     def latest_postgres_row_date(self):
         postgres_hook = PostgresHook(postgres_conn_id='postgres_db')
@@ -18,16 +21,16 @@ class PostgresClient():
 
         return max_date
 
-    def incremental_load_into_postgres_table(self, country, execution_ts):
+    def incremental_load_into_postgres_table(self, region_name, execution_ts):
 
-        s3_hook = S3Hook(aws_conn_id=self.aws_conn_id)
+        s3_hook = S3Hook(aws_conn_id=aws_conn_id)
         postgres_hook = PostgresHook(postgres_conn_id=self.postgres_conn_id)
 
         max_date = self.latest_postgres_row_date()
         print(f'SQL Date: {max_date}')
         
         # Maybe pass the file list into xcom and grab from there? But what if the file list is too long?
-        file_list = self.get_s3_filenames(country)
+        file_list = self.get_s3_filenames()
 
         insert_files = []
 
@@ -74,7 +77,7 @@ class PostgresClient():
         postgres_hook.insert_rows(
         table='covid_raw',
         rows=insert_files,
-        target_fields=["date","confirmed","deaths","recovered","confirmed_diff","deaths_diff","recovered_diff","last_update","active","active_diff","fatality_rate","region","source_file_index","created_ts"],
+        target_fields=self.schema.model_json_schema()['required'],
         commit_every=1000,
         replace=False,
         executemany=False,
@@ -83,12 +86,12 @@ class PostgresClient():
         )
         print(f'Row inserted into Postgres: {file}')
 
-    def full_load_into_postgres_table(self, execution_ts):
+    def full_load_into_postgres_table(self, region_name, execution_ts):
 
         s3_hook = S3Hook(aws_conn_id=self.bucket_name)
         postgres_hook = PostgresHook(postgres_conn_id=self.postgres_conn_id)
 
-        file_list = self.get_s3_filenames()
+        file_list = self.get_s3_filenames(region_name)
         
         # Getting list of data tuples can probably be separated into a different function
         insert_files = []
@@ -127,7 +130,7 @@ class PostgresClient():
         postgres_hook.insert_rows(
             table='covid_raw',
             rows=insert_files,
-            target_fields=["date","confirmed","deaths","recovered","confirmed_diff","deaths_diff","recovered_diff","last_update","active","active_diff","fatality_rate","region","source_file_index","created_ts"],
+            target_fields=self.schema.model_json_schema()['required'],
             commit_every=1000,
             replace=False,
             executemany=False,

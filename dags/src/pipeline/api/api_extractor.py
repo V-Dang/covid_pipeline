@@ -5,13 +5,21 @@ import logging
 import requests
 
 
-from dags.src.pipeline.api.api_client import ApiClient
+from .api_client import ApiClient
 
 class ApiExtractor(ApiClient):
-    def __init__(self, url, params=None):
-        self.url = url
-        self.params = params
+    def __init__(self, url):
+        ApiClient.__init__(self, url)
 
-    def extract(self) -> List[dict]:
-        response = requests.get(f'{self.url}', params=self.params)
+    # for version 2
+    def extract(self, params=None) -> List[dict]:
+        response = requests.get(f'{self.url}', params=params)
+        print(params)
+        return response.json()['data']
+
+    # for version 1
+    @staticmethod
+    def extract_api(url, params=None) -> List[dict]:
+        response = requests.get(f'{url}', params=params)
+        print(params)
         return response.json()['data']

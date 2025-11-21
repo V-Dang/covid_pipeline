@@ -64,6 +64,12 @@ if full load, then load entire container into SQL table
 
 if incremental, then pick up where you left off
 
+
+Docker:
+- Running locally (using container dependencies). Must enter into container:
+    docker compose exec airflow-worker bash
+    docker compose exec airflow-scheduler bash
+
 Links and References:
 - API: https://covid-api.com/api/
 - Airflow: 
