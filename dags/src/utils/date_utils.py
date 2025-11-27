@@ -1,13 +1,13 @@
+from datetime import datetime
 import logging
 import pendulum
-from datetime import datetime
 
-def get_list_of_dates(start_date, manual_end_date=None):
+def get_list_of_dates(start_date:str|datetime, manual_end_date:datetime = None):
     """
     Gets the list of dates from start date (depending on manual input, full/incremental load ts) to end date (current date).
 
     Args:
-        start_date (str): Start date in format YYYY-MM-DD
+        start_date (str|datetime): Start date in format YYYY-MM-DD
         manual_end_date (str, optional): End date in format YYYY-MM-DD. Defaults to None.
 
     Returns:

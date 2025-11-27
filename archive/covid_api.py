@@ -36,7 +36,7 @@ def get_s3_filenames(**kwargs):
         )
     return file_list
 
-def is_bucket_empty(**kwargs) -> str:
+def evaluate_bucket_load_mode(**kwargs) -> str:
     """
     Checks if there are files in the S3 bucket. 
     
@@ -57,14 +57,14 @@ def is_bucket_empty(**kwargs) -> str:
     if not file_list:
         logging.info('Starting full load...')
         kwargs['ti'].xcom_push(
-            key='is_bucket_empty',
+            key='evaluate_bucket_load_mode',
             value=0
         )
         return 'full_load_ts'
     else:
         logging.info('Starting incremental load...')
         kwargs['ti'].xcom_push(
-        key='is_bucket_empty',
+        key='evaluate_bucket_load_mode',
         value=1
         )
         return 'incremental_load_ts'

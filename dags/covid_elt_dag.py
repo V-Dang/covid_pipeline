@@ -5,33 +5,49 @@ from airflow.sdk import Param, get_current_context
 
 from datetime import datetime, timedelta
 
-from src.pipeline.api.api_extractor import ApiExtractor
-from src.pipeline.S3.s3_loader import S3Loader
-from src.pipeline.postgres.postgres_loader import PostgresLoader
-from src.pipeline.pipeline_config import PipelineConfig
 from src.models.schemas import CovidDataSchema
+from src.pipeline.api.api_reader import ApiReader
+from src.pipeline.pipeline import Pipeline
+from src.pipeline.pipeline_config import PipelineConfig
+from src.pipeline.postgres.postgres_loader import PostgresLoader
+from src.pipeline.S3.s3_reader import S3Reader
+from src.pipeline.S3.s3_writer import S3Writer
 from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 
 # Define pipeline config obj here
-covid_pipeline = PipelineConfig(
-    ApiExtractor=ApiExtractor(
-        url='https://covid-api.com/api/reports',
+config=PipelineConfig(
+        api_url='https://covid-api.com/api/reports',
+        s3_prefix='covid/Canada',
+        postgres_table='covid_raw'
+    )
+
+covid_pipeline = Pipeline(
+    # NOTE: should be named as CovidApiReader for specificity
+    config=config,
+    api_reader=ApiReader(
+        url=config.api_url
         ),
-    S3Loader=S3Loader(
+    s3_writer=S3Writer(
         bucket_name=s3_bucket_name,
         aws_conn_id=aws_conn_id,
-        prefix='covid/Canada'
+        prefix=config.s3_prefix
         ),
-    PostgresLoader=PostgresLoader(
+    s3_reader=S3Reader(
         bucket_name=s3_bucket_name,
         aws_conn_id=aws_conn_id,
-        prefix='covid/Canada',
+        prefix=config.s3_prefix
+    ),
+    postgres_loader=PostgresLoader(
+        bucket_name=s3_bucket_name,
+        aws_conn_id=aws_conn_id,
+        prefix=config.s3_prefix,
 
         postgres_conn_id=postgres_conn_id,
         table_name='covid_raw',
         schema=CovidDataSchema
     )
 )
+
 
 default_args = {
     'owner':'vividang',
@@ -65,28 +81,28 @@ with DAG(
 ):
     api_status = PythonOperator(
         task_id = 'api_status',
-        python_callable=covid_pipeline.ApiExtractor.check_api_status,
+        python_callable=covid_pipeline.api_reader.check_api_status,
         op_kwargs={
             'region_name': '{{ params.Country }}'
         }
     )
     full_or_incremental_load = BranchPythonOperator(
         task_id = 'full_or_incremental_load',
-        python_callable=covid_pipeline.S3Loader.is_bucket_empty,
+        python_callable=covid_pipeline.s3_writer.evaluate_bucket_load_mode,
         op_kwargs={
             'region_name': '{{ params.Country }}'
         }
     )
     full_load_ts = PythonOperator(
         task_id = 'full_load_ts',
-        python_callable=covid_pipeline.S3Loader.get_full_load_ts,
+        python_callable=covid_pipeline.s3_writer.get_full_load_ts,
         op_kwargs={
             'manual_start_date': '{{ params.start_date }}'
         }
     )
     incremental_load_ts = PythonOperator(
         task_id = 'incremental_load_ts',
-        python_callable=covid_pipeline.S3Loader.get_incremental_load_ts,
+        python_callable=covid_pipeline.s3_writer.get_incremental_load_ts,
         op_kwargs={
             'manual_start_date': '{{ params.start_date }}',
             'region_name': '{{ params.Country }}'
@@ -94,7 +110,7 @@ with DAG(
     )
     write_to_bucket = PythonOperator(
         task_id = 'write_to_bucket',
-        python_callable=covid_pipeline.S3Loader.write_to_s3,
+        python_callable=covid_pipeline.s3_writer.write_to_s3,
         op_kwargs={
             'region_name': '{{ params.Country }}',
             'start_date': '{{ ti.xcom_pull(task_ids="full_load_ts", key="return_value") if ti.xcom_pull(task_ids="full_or_incremental_load") == "full_load_ts" else ti.xcom_pull(task_ids="incremental_load_ts", key="return_value") }}',
@@ -128,13 +144,13 @@ with DAG(
     )
     full_load_into_postgres_table = PythonOperator(
         task_id='full_load_into_postgres_table',
-        python_callable=covid_pipeline.PostgresLoader.full_load_into_postgres_table,
+        python_callable=covid_pipeline.postgres_loader.full_load_into_postgres_table,           # Postgres Loader class requires inheritance from Parent Class S3Client
         trigger_rule='none_skipped',
         # provide_context=True
     )
     incremental_load_into_postgres_table = PythonOperator(
         task_id='incremental_load_into_postgres_table',
-        python_callable=covid_pipeline.PostgresLoader.incremental_load_into_postgres_table,
+        python_callable=covid_pipeline.postgres_loader.incremental_load_into_postgres_table,     # Postgres Loader class requires inheritance from Parent Class S3Client
         op_kwargs={
             'region_name':'{{ params.Country }}',
             'execution_ts': '{{ ts }}'

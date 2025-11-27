@@ -1,19 +1,39 @@
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+
+from datetime import datetime
 import json
 import pendulum
 from pydantic import BaseModel
-from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
-from src.pipeline.S3.s3_loader import S3Client
+
+from src.secrets import aws_conn_id
+from src.pipeline.S3.s3_writer import S3Client
 
 class PostgresLoader(S3Client):
     def __init__(self, bucket_name: str, aws_conn_id: str, prefix: str, postgres_conn_id:str, table_name:str, schema:BaseModel):
+        """Writer to Postgres. Inherits from S3 Client class required for version 1 dag.
+
+        Args:
+            bucket_name (str): _description_
+            aws_conn_id (str): _description_
+            prefix (str): _description_
+            postgres_conn_id (str): _description_
+            table_name (str): _description_
+            schema (BaseModel): _description_
+        """
         S3Client.__init__(self, bucket_name, aws_conn_id, prefix)
         self.postgres_conn_id = postgres_conn_id
         self.table_name = table_name
         self.schema = schema
+        self.postgres_hook = PostgresHook(postgres_conn_id=self.postgres_conn_id)
 
-    def latest_postgres_row_date(self):
+    def latest_postgres_row_date(self) -> str:
+        """
+        Connects to postgres to get the max date (latest row) from the table.
+
+        Returns:
+            str: The latest date in the postgres table in "YYYY-MM-DD" format.
+        """
         postgres_hook = PostgresHook(postgres_conn_id='postgres_db')
         latest_date_query = f'SELECT MAX(date) FROM {self.table_name};'
 
@@ -21,7 +41,34 @@ class PostgresLoader(S3Client):
 
         return max_date
 
-    def incremental_load_into_postgres_table(self, region_name, execution_ts):
+    # Version 2 
+    def load_into_postgres_table(self, insert_files:tuple) -> None:
+        """
+        Write to postgres table. 
+
+        Args:
+            insert_files (tuple): Row values to insert.
+        """
+        self.postgres_hook.insert_rows(
+        table='covid_raw',
+        rows=insert_files,
+        target_fields=self.schema.model_json_schema()['required'],
+        commit_every=1000,
+        replace=False,
+        executemany=False,
+        fast_executemany=False,
+        autocommit=False
+        )
+
+
+    # Version 1
+    def incremental_load_into_postgres_table(self, execution_ts:datetime) -> None:
+        """
+        Inserts only new rows into Postgres table from S3 bucket based on the latest date in Postgres table and S3 filenames with dates > latest postgres row.
+
+        Args:
+            execution_ts (datetime): Timestamp of executed DAG run. Defined by airflow macros.
+        """
 
         s3_hook = S3Hook(aws_conn_id=aws_conn_id)
         postgres_hook = PostgresHook(postgres_conn_id=self.postgres_conn_id)
@@ -86,12 +133,17 @@ class PostgresLoader(S3Client):
         )
         print(f'Row inserted into Postgres: {file}')
 
-    def full_load_into_postgres_table(self, region_name, execution_ts):
+    def full_load_into_postgres_table(self, execution_ts:datetime) -> None:
+        """
+        Inserts new rows (full load) into Postgres table from S3 bucket.
 
+        Args:
+            execution_ts (datetime): Timestamp of executed DAG run. Defined by airflow macros.
+        """
         s3_hook = S3Hook(aws_conn_id=self.bucket_name)
         postgres_hook = PostgresHook(postgres_conn_id=self.postgres_conn_id)
 
-        file_list = self.get_s3_filenames(region_name)
+        file_list = self.get_s3_filenames()
         
         # Getting list of data tuples can probably be separated into a different function
         insert_files = []

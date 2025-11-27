@@ -6,7 +6,7 @@ from airflow.sdk import Param, get_current_context
 
 from datetime import datetime, timedelta
 
-from archive.covid_api import check_api_status, is_bucket_empty, get_full_load_ts, get_incremental_load_ts, api_to_s3, get_list_of_dates, full_load_into_postgres_table
+from archive.covid_api import check_api_status, evaluate_bucket_load_mode, get_full_load_ts, get_incremental_load_ts, api_to_s3, get_list_of_dates, full_load_into_postgres_table
 
 default_args = {
     'owner':'vividang',
@@ -44,7 +44,7 @@ with DAG(
     )
     full_or_incremental_load = BranchPythonOperator(
         task_id = 'full_or_incremental_load',
-        python_callable=is_bucket_empty,
+        python_callable=evaluate_bucket_load_mode,
         op_kwargs={'logical_date': '{{ logical_date }}'}
     )
     full_load_ts = PythonOperator(
