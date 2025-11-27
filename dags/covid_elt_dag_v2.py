@@ -1,43 +1,45 @@
 from airflow import DAG
-from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
-from airflow.providers.amazon.aws.hooks.s3 import S3Hook
-from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.amazon.aws.transfers.s3_to_sql import S3ToSqlOperator
-from airflow.sdk import Param, get_current_context
+from airflow.operators.python import PythonOperator
+from airflow.sdk import Param
 
 from datetime import datetime, timedelta
-import logging
-import requests
-import json
-import io
 
-from src.pipeline.api.api_extractor import ApiExtractor
-from src.pipeline.S3.s3_loader import S3Loader
-from src.pipeline.postgres.postgres_loader import PostgresLoader
-from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
-from src.utils.date_utils import get_list_of_dates
-from src.pipeline.pipeline_config import PipelineConfig
 from src.models.schemas import CovidDataSchema
+from src.pipeline.api.api_reader import ApiReader
+from src.pipeline.pipeline import Pipeline
+from src.pipeline.pipeline_config import PipelineConfig
+from src.pipeline.postgres.postgres_loader import PostgresLoader
+from src.pipeline.S3.s3_reader import S3Reader
+from src.pipeline.S3.s3_writer import S3Writer
+from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 
 # Define pipeline config obj here
-covid_pipeline = PipelineConfig(
-    ApiExtractor=ApiExtractor(
-        url='https://covid-api.com/api/reports',
-        # params={
-        #         'region_name':'Canada',
-        #         'date': None
-        #         },
+config=PipelineConfig(
+        api_url='https://covid-api.com/api/reports',
+        s3_prefix='covid/Canada',
+        postgres_table='covid_raw'
+    )
+
+covid_pipeline = Pipeline(
+    # NOTE: should be named as CovidApiReader for specificity
+    config=config,
+    api_reader=ApiReader(
+        url=config.api_url
         ),
-    S3Loader=S3Loader(
+    s3_writer=S3Writer(
         bucket_name=s3_bucket_name,
         aws_conn_id=aws_conn_id,
-        prefix='covid/Canada'
+        prefix=config.s3_prefix
         ),
-    PostgresLoader=PostgresLoader(
+    s3_reader=S3Reader(
         bucket_name=s3_bucket_name,
         aws_conn_id=aws_conn_id,
-        prefix='covid/Canada',
+        prefix=config.s3_prefix
+    ),
+    postgres_loader=PostgresLoader(
+        bucket_name=s3_bucket_name,
+        aws_conn_id=aws_conn_id,
+        prefix=config.s3_prefix,
 
         postgres_conn_id=postgres_conn_id,
         table_name='covid_raw',
@@ -77,7 +79,7 @@ with DAG(
 ):
     run_pipeline = PythonOperator(
         task_id='run_pipeline',
-        python_callable=covid_pipeline.run,
+        python_callable=covid_pipeline.run_s3_load,
         op_kwargs={
                 'manual_start_date': '{{ params.start_date }}',
                 'manual_end_date': '{{ params.end_date }}',
