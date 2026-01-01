@@ -10,6 +10,7 @@ import pendulum
 from src.pipeline.S3.s3_client import S3Client
 from src.pipeline.api.api_reader import ApiReader
 from src.utils.date_utils import get_list_of_dates
+from src.utils.metadata_col_utils import inject_metadata_ts_file_key
 
 class S3Writer(S3Client):
     def __init__(self, bucket_name:str, aws_conn_id:str, prefix:str):
@@ -39,7 +40,7 @@ class S3Writer(S3Client):
             )
 
     # for dag version 1
-    def write_to_s3(self, region_name, start_date, manual_end_date=None) -> None:
+    def write_to_s3(self, ts, region_name, start_date, manual_end_date=None) -> None:
         """
         Read API and write to S3 bucket for each date.
         Calls the function get_list_of_dates and loop through the dates list. Each loop writes a new json file to S3 bucket.
@@ -64,6 +65,8 @@ class S3Writer(S3Client):
             file_name = f'{self.prefix}/report_data_{d}.json'
 
             print(file_name)
+
+            json_file_with_metadata = inject_metadata_ts_file_key(json_file, file_name, ts)
 
             # self.S3Writer.load(
             #     json_data=json_file,

@@ -49,7 +49,7 @@ class S3Client():
             logging.info('Starting incremental load...')
             return 'incremental_load_ts'
 
-    def get_full_load_ts(manual_start_date:datetime = None) -> str:
+    def get_full_load_ts(self, manual_start_date:datetime = None) -> str:
         """Gets the timestamp for a full load using the specified param (start_date) or manually set to Jan 1 2020 for a full load. Start timestamp is pushed to XCOM.
 
         Args:

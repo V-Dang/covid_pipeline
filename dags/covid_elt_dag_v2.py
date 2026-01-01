@@ -16,7 +16,7 @@ from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 # Define pipeline config obj here
 config=PipelineConfig(
         api_url='https://covid-api.com/api/reports',
-        s3_prefix='covid/Canada',
+        s3_prefix='covid/Canada/raw',
         postgres_table='covid_raw'
     )
 
@@ -81,6 +81,7 @@ with DAG(
         task_id='run_pipeline',
         python_callable=covid_pipeline.run_s3_load,
         op_kwargs={
+                'execution_ts': '{{ ts }}',
                 'manual_start_date': '{{ params.start_date }}',
                 'manual_end_date': '{{ params.end_date }}',
                 'region_name': '{{ params.Country }}'

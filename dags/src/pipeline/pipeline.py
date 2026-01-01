@@ -9,6 +9,7 @@ from src.pipeline.S3.s3_writer import S3Writer
 from src.pipeline.postgres.postgres_loader import PostgresLoader
 from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 from src.utils.date_utils import get_list_of_dates
+from src.utils.metadata_col_utils import inject_metadata_ts_file_key
 
 class Pipeline():
     def __init__(self, config: PipelineConfig, api_reader: ApiReader, s3_reader: S3Reader, s3_writer: S3Writer, postgres_loader: PostgresLoader):
@@ -27,7 +28,7 @@ class Pipeline():
         self.s3_writer = s3_writer
         self.postgres_loader = postgres_loader
 
-    def run_s3_load(self, manual_start_date:datetime = None, manual_end_date:datetime = None, region_name:str = None) -> None:
+    def run_s3_load(self, execution_ts: datetime, manual_start_date:datetime = None, manual_end_date:datetime = None, region_name:str = None) -> None:
         """
         Extract data from API then write to S3 bucket as a JSON file.
         
@@ -59,18 +60,27 @@ class Pipeline():
             dates = get_list_of_dates(start_date, manual_end_date)
 
             for d in dates:
-                json_data = self.api_reader.read(region_name=region_name, date=d)
-                # print(json_data)
+                try:
+                    json_data = self.api_reader.read(region_name=region_name, date=d)
+                    print(json_data)
 
-                file_name = f'{self.s3_writer.prefix}/report_data_{d}.json'
-                # print(file_name)
-                
-                self.s3_writer.write(
-                    json_data=json_data,
-                    file_key=file_name
-                )
+                    if json_data:
+                        file_name = f'{self.s3_writer.prefix}/report_data_{d}.json'
+                        print(file_name)
 
-                print(f'Loaded data for date: {d} into S3 bucket as {file_name}')
+                        json_file_with_metadata = inject_metadata_ts_file_key(execution_ts=execution_ts, json_file=json_data, file_name=file_name)
+                        print(json_file_with_metadata)
+
+                        self.s3_writer.write(
+                            json_data=json_file_with_metadata,
+                            file_key=file_name
+                        )
+
+                        print(f'Loaded data for date: {d} into S3 bucket as {file_name}')
+                    else:
+                        continue
+                except Exception as e:
+                    print(e)
 
     def run_postgres_load(self, execution_ts: datetime) -> None:
         """
