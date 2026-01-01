@@ -17,7 +17,7 @@ from src.secrets import s3_bucket_name, aws_conn_id, postgres_conn_id
 # Define pipeline config obj here
 config=PipelineConfig(
         api_url='https://covid-api.com/api/reports',
-        s3_prefix='covid/Canada',
+        s3_prefix='covid/Canada/raw',
         postgres_table='covid_raw'
     )
 

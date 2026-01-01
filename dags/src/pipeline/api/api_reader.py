@@ -50,5 +50,5 @@ class ApiReader(ApiClient):
             'date': date
         }
         response = requests.get(f'{self.url}', params=params)
-        print(params)
+        # print(params)
         return response.json()['data']
